@@ -10,6 +10,7 @@ defmodule ExrmDeb.Data do
     ExrmDeb.Generators.Changelog.build(data_dir, config)
     ExrmDeb.Generators.Upstart.build(data_dir, config)
     ExrmDeb.Generators.Systemd.build(data_dir, config)
+    ExrmDeb.Generators.Init.build(data_dir, config)
 
     config = Map.put_new(
       config,

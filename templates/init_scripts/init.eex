@@ -1,0 +1,40 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          <%= name %>
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: <%= description %>
+### END INIT INFO
+
+env MIX_ENV=prod
+export MIX_ENV
+
+<%= if uid == "root" do %>
+env HOME=/root
+<% else %>
+env HOME=/home/<%= uid %>
+<% end %>
+export HOME
+
+case "$1" in
+    start)
+      sudo -u <%= uid %> -g <%= gid %> /bin/sh /opt/<%= name %>/bin/<%= name %> start
+    ;;
+    stop)
+      sudo -u <%= uid %> -g <%= gid %> /bin/sh /opt/<%= name %>/bin/<%= name %>  stop
+    ;;
+    restart)
+      sudo -u <%= uid %> -g <%= gid %> /bin/sh /opt/<%= name %>/bin/<%= name %>  restart
+    ;;
+    status)
+      sudo -u <%= uid %> -g <%= gid %> /bin/sh /opt/<%= name %>/bin/<%= name %>  ping
+    ;;
+    *)
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit 1
+    ;;
+esac
+
+exit 0
