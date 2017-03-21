@@ -1,5 +1,13 @@
 defmodule ExrmDeb.Data do
-  alias  ReleaseManager.Utils.Logger
+  @moduledoc ~S"""
+  This module houses the logic required to build the data payload portion of the
+  debian package.
+  """
+  alias ReleaseManager.Utils.Logger
+  alias ReleaseManager.Utils
+  alias ExrmDeb.Utils.Compression
+  alias ExrmDeb.Generators.{Changelog, Upstart, Systemd, Init}
+  alias Mix.Project
   import Logger, only: [debug: 1]
 
   def build(dir, config) do
@@ -7,10 +15,10 @@ defmodule ExrmDeb.Data do
     copy_release(data_dir, config)
     remove_targz_file(data_dir, config)
     ExrmDeb.Utils.File.remove_fs_metadata(data_dir)
-    ExrmDeb.Generators.Changelog.build(data_dir, config)
-    ExrmDeb.Generators.Upstart.build(data_dir, config)
-    ExrmDeb.Generators.Systemd.build(data_dir, config)
-    ExrmDeb.Generators.Init.build(data_dir, config)
+    Changelog.build(data_dir, config)
+    Upstart.build(data_dir, config)
+    Systemd.build(data_dir, config)
+    Init.build(data_dir, config)
 
     config = Map.put_new(
       config,
@@ -18,7 +26,7 @@ defmodule ExrmDeb.Data do
       ExrmDeb.Utils.File.get_dir_size(data_dir)
     )
 
-    ExrmDeb.Utils.Compression.compress(
+    Compression.compress(
       data_dir,
       Path.join([data_dir, "..", "data.tar.gz"]),
       owner: config.owner
@@ -29,7 +37,7 @@ defmodule ExrmDeb.Data do
   end
 
 
-  # We don't use/need the .tar.gz file built be exrm, so
+  # We don't use/need the .tar.gz file built by exrm, so
   # remove it from the data dir to reduce filesize.
   defp remove_targz_file(data_dir, config) do
     [data_dir, "opt", config.name, "#{config.name}-#{config.version}.tar.gz"]
@@ -48,11 +56,19 @@ defmodule ExrmDeb.Data do
 
   defp copy_release(data_dir, config) do
     dest = Path.join([data_dir, "opt", config.name])
-    src = Path.join(ReleaseManager.Utils.rel_dest_path, config.name)
+    src = src_path(config)
 
     debug("Copying #{src} into #{dest} directory")
     {:ok, _} = File.cp_r(src, dest)
 
     dest
+  end
+
+  defp src_path(%ExrmDeb.Config{distillery: true} = config) do
+    Path.join([Project.build_path, "rel", config.name])
+  end
+
+  defp src_path(config) do
+    Path.join([Utils.rel_dest_path, config.name])
   end
 end

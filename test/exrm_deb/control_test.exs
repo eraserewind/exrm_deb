@@ -27,13 +27,18 @@ defmodule ExrmDebTest.ControlTest do
 
   test "Builds a control file to spec", meta do
     control_file = Path.join([meta.config.test_dir, "control"])
+    conffiles_file = Path.join([meta.config.test_dir, "conffiles"])
 
     # Build the control package
-    assert :ok = ExrmDeb.Control.build(meta.config.test_dir, meta.config.metadata)
+    assert :ok =
+      ExrmDeb.Control.build(meta.config.test_dir, meta.config.metadata)
     assert true = File.exists?(control_file <> ".tar.gz")
 
     # Unpack it
-    System.cmd("tar", ["-zxvf", control_file <> ".tar.gz"], stderr_to_stdout: true)
+    System.cmd(
+      "tar",
+      ["-zxvf", control_file <> ".tar.gz"],
+      stderr_to_stdout: true)
     assert true = File.exists? control_file
 
     # Read the control file
@@ -41,6 +46,9 @@ defmodule ExrmDebTest.ControlTest do
 
     assert true = String.contains?(file, "Package:")
     assert true = String.contains?(file, meta.config.metadata.version)
-  end
 
+    # Read the conffiles file
+    assert {:ok, file} = File.read(conffiles_file)
+    assert true = String.contains?(file, "dummy_file")
+  end
 end

@@ -13,20 +13,21 @@ Adds simple [Debian Package][1] (DEB) generation to the exrm package manager.
      1. [x] With changelog
      2. [x] With control file
  2. [x] Ability to add in pre/post install/remove scripts
- 7. [x] Validates configuration before completing the build
+ 3. [x] Validates configuration before completing the build
  4. [x] Add ability for you to replace file templates with your own
- 3. [ ] Automatically builds init scripts:
+ 5. [x] [Distillery support](https://github.com/bitwalker/distillery)
+ 6. [ ] Automatically builds init scripts:
      1. [x] Upstart
      2. [x] Systemd
      3. [ ] SysV
- 5. [ ] Handle functionality for Hot Upgrades
- 6. [ ] Merge debian to-be-deployed files with your own structure
+ 7. [ ] Handle functionality for Hot Upgrades
+ 8. [ ] Merge debian to-be-deployed files with your own structure
 
 ## External dependencies
 
 Before using exrm-deb, you'll need the following commands installed and in your path:
 
- - `tar` (or `gtar` if you're on mac - you can `brew install gnu-tar` if you don't already have it)
+ - `tar` (or `gtar` if you're on a mac - you can `brew install gnu-tar` if you don't already have it)
  - `ar`
  - `uname`
 
@@ -57,8 +58,10 @@ The `package` function must be set as per the [hex guidelines][2], but with some
 def package do
    [
 +     external_dependencies: [],
++     codename: lsb_release(),
 +     license_file: "LICENSE",
       files: [ "lib", "mix.exs", "README*", "LICENSE"],
++     config_files: ["/etc/init/api.conf"],
       maintainers: ["John Hamelink <john@example.com>"],
       licenses: ["MIT"],
       vendor: "John Hamelink",
@@ -71,10 +74,20 @@ def package do
 end
 ```
 
+```
+def lsb_release do
+  {release, _} = System.cmd("lsb_release", ["-c", "-s"])
+  String.replace(release, "\n", "")
+end
+```
+
 A list of configuration options you can add to `package/0`:
 
+ - `config_file`
+   - Array of Strings
+   - Should contain the absolute path of the config file to be overwritten.
  - `licenses`
-   - Array of strings
+   - Array of Strings
    - Can be something like `["Copyright <date> <company_name>"]` if you are building private packages.
  - `maintainers`
    - Array of Strings
@@ -94,10 +107,29 @@ A list of configuration options you can add to `package/0`:
    - If set, requires both `user` and `group` keys to be set.
    - This is used when building the archive to set the correct user and group
    - Defaults to root for user & group.
+ - `codename`
+   - String
+   - Should contain the distribution codename to be chained to version number.
+
+### Additional details about codename
+
+This configuration can be very useful in case you want to package the same version
+of the app for different distribution dinamically, without modifying the version
+in Distillery configuration.
+
+A typical use case can be an environment where you have different Docker containers,
+with different OS, each container compiles and packages the application in the running OS,
+in order to avoid startup problems in production.
+
+With codename, at the end of the process, you obtain a package in the form "myapp-1.2.1~xenial_amd64.deb".
+Also the control script in deb file is packaged with the correct version like 1.2.1~xenial.
+At this point, it easier to manage the packages loaded in a repository, because they are versioned also by distribution.
 
 ## Usage
 
 ### Building Deb file
+
+#### Exrm
 
 You can build a deb at the same time as building a release by adding the --deb option to release.
 
@@ -112,6 +144,16 @@ as the name, version, etc using the `mix.exs` file.
 The `_build/deb` directory tree, along with the rest of the release can be removed with `mix release.clean`
 
 Please visit [exrm][3] for additional information.
+
+#### Distillery
+
+Distillery support is currently in the `feature/distillery-support` branch. You can require it in your `mix.exs` like so:
+
+```elixir
+{:exrm_deb, github: "johnhamelink/exrm_deb", branch: "feature/distillery-support"}
+```
+
+You can build a deb by adding `plugin ExrmDeb.Distillery` to your `rel/config.exs` file. With distillery, the name and version is taken from the `rel/config.exs` file as opposed to the `mix.exs` file.
 
 ### Customising deb config files
 

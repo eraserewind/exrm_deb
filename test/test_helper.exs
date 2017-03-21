@@ -1,9 +1,5 @@
 ExUnit.start()
 
-# Required to stop Logger.debug from returning
-# GenServer errors.
-ReleaseManager.Utils.Logger.start_link
-
 defmodule TestHelper do
 
   def tmp_directory(path) do
@@ -25,9 +21,9 @@ defmodule TestHelper do
       homepage:              Faker.Internet.url,
       description:           Faker.Lorem.paragraph(1..5),
       maintainer_scripts:    [],
+      config_files:          ["dummy_file"],
       owner:                 [user: "root", group: "root"]
     } |> ExrmDeb.Utils.Config.sanitize_config
   end
 
 end
-

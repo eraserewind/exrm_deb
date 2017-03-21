@@ -1,12 +1,22 @@
 defmodule ExrmDeb.Config do
-  defstruct name: nil, version: nil, licenses: nil, maintainers: nil,
-            external_dependencies: nil, maintainer_scripts: [],
-            homepage: nil, description: nil, vendor: nil,
-            arch: nil, owner: [user: "root", group: "root"]
+  @moduledoc ~S"""
+  This module is used to capture the configuration of the debian package build.
+  The module also includes validation functionality which is used to ensure that
+  the data is in the correct format.
+  """
+
+  defstruct name: nil, version: nil, codename: nil, licenses: nil,
+            maintainers: nil, external_dependencies: nil,
+            maintainer_scripts: [], config_files: [],
+            homepage: nil, description: nil,
+            vendor: nil, arch: nil, distillery: false,
+            owner: [user: "root", group: "root"]
 
   use Vex.Struct
-  alias  ReleaseManager.Utils.Logger
-  import Logger, only: [debug: 1, error: 1]
+  alias ReleaseManager.Utils.Logger
+  alias ExrmDeb.Utils
+  alias Mix.Project
+  import Logger, only: [error: 1]
 
   # This version number format should be able to handle regular version
   # numbers as well as alpha/beta versions
@@ -23,14 +33,39 @@ defmodule ExrmDeb.Config do
   validates :licenses, presence: true
   validates :maintainers, presence: true
 
-  def build_config(old_config = %{} \\ %{}) do
+  def build_config(:distillery, release = %Mix.Releases.Release{}) do
     base_config =
       [
-        {:name, Atom.to_string(Mix.Project.config[:app])},
-        {:version,Mix.Project.config[:version]},
-        {:description, Mix.Project.config[:description]},
+        {:name, Atom.to_string(release.name)},
+        {:description, Project.config[:description]},
+        {:arch, Utils.Config.detect_arch},
+        {:distillery, true}
+      ] ++ config_from_package(Project.config[:package])
+        ++ config_version(release.version, Project.config[:package][:codename])
+
+    base_config =
+      base_config
+      |> Enum.dedup
+      |> Enum.reject(&is_nil(&1))
+      |> Enum.into(%{})
+
+    ExrmDeb.Config
+    |> struct(base_config)
+    |> ExrmDeb.Utils.Config.sanitize_config
+    |> check_valid
+  end
+  def build_config(:exrm, old_config = %{}) do
+    base_config =
+      [
+        {:name, Atom.to_string(Project.config[:app])},
+        {:description, Project.config[:description]},
         {:arch, ExrmDeb.Utils.Config.detect_arch}
-      ] ++ config_from_package(Mix.Project.config[:package])
+      ] ++ config_from_package(Project.config[:package])
+        ++ config_version(Project.config[:version],
+                          Project.config[:package][:codename])
+
+    base_config =
+      base_config
       |> Enum.dedup
       |> Enum.reject(&(is_nil(&1)))
       |> Enum.into(%{})
@@ -39,6 +74,14 @@ defmodule ExrmDeb.Config do
     |> struct(Map.merge(base_config, old_config))
     |> ExrmDeb.Utils.Config.sanitize_config
     |> check_valid
+  end
+  def build_config(:exrm), do: build_config(:exrm, %{})
+
+  defp config_version(version, codename) when codename != nil do
+    [{:version, version <> "~" <> codename}]
+  end
+  defp config_version(version, _) do
+    [{:version, version}]
   end
 
   defp config_from_package(nil) do
@@ -51,17 +94,21 @@ defmodule ExrmDeb.Config do
     |> throw
   end
   defp config_from_package(value) when is_list(value) do
-    Enum.map(value, fn({key, value}) -> handle_config(key, value) end)
+    value
+    |> Enum.map(fn({key, value}) -> handle_config(key, value) end)
     |> Enum.dedup
     |> Enum.reject(&(is_nil(&1)))
   end
 
   @joining_list_values [:licenses, :maintainers, :external_dependencies]
 
-  defp handle_config(key, [_|_] = value) when key in @joining_list_values do
+  defp handle_config(key, [_ | _] = value) when key in @joining_list_values do
     {key, Enum.join(value, ", ")}
   end
-  defp handle_config(:maintainer_scripts, [_|_] = value) do
+  defp handle_config(:config_files, value) do
+    {:config_files, value}
+  end
+  defp handle_config(:maintainer_scripts, [_ | _] = value) do
     {:maintainer_scripts, value}
   end
   defp handle_config(:links, %{"Homepage" => value}) do
@@ -82,21 +129,23 @@ defmodule ExrmDeb.Config do
   defp check_valid(config = %ExrmDeb.Config{}) do
     # Use Vex to validate whether the config is valid. If not,
     # then raise an error with a list of config errors
-    if Vex.valid?(config) == false do
+    if Vex.valid?(config) do
+      {:ok, config}
+    else
       error "The configuration is invalid!"
       for err = {:error, _field, _type, _msg} <- Vex.errors(config) do
         print_validation_error(err)
       end
       {:error, Vex.errors(config)}
-    else
-      {:ok, config}
     end
   end
 
-  defp print_validation_error({:error, field, _type, msg}) when is_atom(field) do
+  defp print_validation_error(
+    {:error, field, _type, msg}) when is_atom(field) do
     error(" - '#{Atom.to_string(field)}' #{msg}")
   end
-  defp print_validation_error({:error, field, _type, msg}) when is_list(field) do
+  defp print_validation_error(
+    {:error, field, _type, msg}) when is_list(field) do
     field = Enum.map_join(field, " -> ", &("'#{&1}'"))
     error(" - #{field} #{msg}")
   end

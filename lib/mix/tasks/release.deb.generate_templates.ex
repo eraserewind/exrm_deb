@@ -11,31 +11,34 @@ defmodule Mix.Tasks.Release.Deb.GenerateTemplates do
 
   use Mix.Task
   require Logger
+  alias ExrmDeb.Utils.Config, as: ConfigUtil
+  alias ReleaseManager.Utils
 
   def run(_args) do
-    make_dest_dir
-    copy_templates
+    make_dest_dir()
+    copy_templates()
   end
 
-  def copy_templates(dest \\ destination_dir) do
+  def copy_templates(dest \\ destination_dir()) do
     Logger.info "Copying templates to ./rel/exrm_deb/templates"
     {:ok, _} =
-      [ExrmDeb.Utils.Config.root, "templates"]
+      [ConfigUtil.root, "templates"]
       |> Path.join
       |> File.cp_r(dest, fn(_source, destination) ->
-        IO.gets("Overwriting #{destination |> Path.basename }. Type y to confirm: ") == "y\n"
+        IO.gets("Overwriting #{destination |> Path.basename }." <>
+                "Type y to confirm: ") == "y\n"
       end)
   end
 
   defp make_dest_dir do
     Logger.info "Making ./rel/exrm_deb/templates directory"
     :ok =
-      destination_dir
+      destination_dir()
       |> File.mkdir_p
   end
 
   defp destination_dir do
-    [ReleaseManager.Utils.rel_dest_path, "exrm_deb", "templates"]
+    [Utils.rel_dest_path, "exrm_deb", "templates"]
     |> Path.join
   end
 

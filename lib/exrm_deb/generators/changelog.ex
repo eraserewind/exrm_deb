@@ -1,6 +1,11 @@
 defmodule ExrmDeb.Generators.Changelog do
+  @moduledoc ~S"""
+  This module produces boilerplate changelog data that's required to build a
+  valid deb file.
+  """
   alias ReleaseManager.Utils.Logger
   alias ExrmDeb.Generators.TemplateFinder
+  alias ExrmDeb.Utils.Compression
   import Logger, only: [debug: 1]
 
   def build(data_dir, config) do
@@ -11,7 +16,8 @@ defmodule ExrmDeb.Generators.Changelog do
       |> Timex.format("%a, %d %b %Y %H:%M:%S GMT", :strftime)
 
     changelog =
-      TemplateFinder.retrieve("changelog.eex")
+      "changelog.eex"
+      |> TemplateFinder.retrieve
       |> EEx.eval_file([
         sanitized_name: config.sanitized_name,
         version: config.version,
@@ -30,9 +36,10 @@ defmodule ExrmDeb.Generators.Changelog do
       |> Path.join
       |> File.write(changelog)
 
-    ExrmDeb.Utils.Compression.compress(doc_dir, "../changelog.gz")
+    Compression.compress(doc_dir, "../changelog.gz")
 
-    Path.join([doc_dir, "changelog"])
+    [doc_dir, "changelog"]
+    |> Path.join
     |> File.rm
 
     [doc_dir, "../changelog.gz"]

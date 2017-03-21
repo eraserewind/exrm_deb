@@ -1,5 +1,11 @@
 defmodule ExrmDeb.Control do
+  @moduledoc ~S"""
+  This module houses the logic required to build the control file and include
+  custom control data such as pre/post install hooks.
+  """
   alias ReleaseManager.Utils.Logger
+  alias ExrmDeb.Generators.Control
+  alias ExrmDeb.Utils.Compression
   import Logger, only: [debug: 1]
 
   # - Add ability to create pre-inst / post-inst hooks [WIP]
@@ -9,15 +15,25 @@ defmodule ExrmDeb.Control do
     debug "Building debian control directory"
     :ok = File.mkdir_p(control_dir)
 
-    ExrmDeb.Generators.Control.build(config, control_dir)
+    Control.build(config, control_dir)
     add_custom_hooks(config, control_dir)
-    ExrmDeb.Utils.Compression.compress(
+    add_conffiles_file(config, control_dir)
+    Compression.compress(
       control_dir,
       Path.join([control_dir, "..", "control.tar.gz"])
     )
     ExrmDeb.Utils.File.remove_tmp(control_dir)
 
     :ok
+  end
+
+  defp add_conffiles_file(config, control_dir) do
+    debug "Marking config files"
+    config_files = Map.get(config, :config_files, [])
+    :ok =
+      [control_dir, "conffiles"]
+      |> Path.join()
+      |> File.write(Enum.join(config_files, "\n"))
   end
 
   defp add_custom_hooks(config, control_dir) do
